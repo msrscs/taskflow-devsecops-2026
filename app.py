@@ -1,66 +1,80 @@
 """
-TaskFlow - Versao INSTRUMENTADA com logging estruturado (Modulo 6).
+TaskFlow - versao corrigida da esteira DevSecOps (Modulos 1 a 6).
 
-Esta e a mesma aplicacao TaskFlow usada no restante do curso
-(ver app-exemplo/app.py), com uma camada de observabilidade adicionada
-por cima. As vulnerabilidades propositais da versao original (SQL
-Injection, XSS, senha em texto puro, segredo hardcoded, endpoint de
-debug exposto) foram MANTIDAS de proposito - o objetivo deste modulo
-NAO e corrigi-las, e sim demonstrar como enxergar sintomas desses
-problemas (e de tentativas de exploracao) atraves de logs estruturados.
+Aplicacao Flask de lista de tarefas usada na disciplina. Partindo da
+versao vulneravel original (app-exemplo/app.py), esta versao corrige as
+vulnerabilidades de codigo e mantem a camada de observabilidade do
+Modulo 6.
 
-O que foi adicionado nesta versao:
-  1. Configuracao de logging em formato JSON (um objeto JSON por linha,
-     tambem chamado de "JSON Lines" ou NDJSON), usando APENAS a
-     biblioteca padrao `logging` do Python + um Formatter customizado.
+Correcoes de seguranca aplicadas:
+  1. SQL Injection (login e busca "q")   -> consultas parametrizadas
+  2. XSS armazenado e refletido          -> templates Jinja2 com autoescape
+                                            (templates/, sem "| safe"),
+                                            incluindo o parametro "q" e a
+                                            mensagem de erro do login
+  3. SECRET_KEY hardcoded                -> variavel TASKFLOW_SECRET_KEY,
+                                            sem fallback
+  4. Senhas em texto puro                -> hash (Werkzeug) e senhas
+                                            iniciais lidas do ambiente
+  5. Endpoint /debug/info exposto        -> removido
+  6. debug=True fixo                     -> FLASK_DEBUG, desligado por padrao
+  7. app.run em 0.0.0.0 fixo             -> FLASK_RUN_HOST, padrao 127.0.0.1
 
-     Por que nao usamos a lib `python-json-logger` aqui?
-     Ela e uma otima opcao de mercado (mais concisa, com suporte a
-     campos extra "de fabrica"), e fica registrada como alternativa em
-     `requirements-observabilidade.txt` (comentada) para quem quiser
-     experimentar. Optamos por escrever nosso proprio Formatter neste
-     exemplo para os alunos verem exatamente o que acontece por baixo
-     dos panos: como cada registro de log vira um dicionario e depois
-     um JSON - isso e didaticamente mais valioso no primeiro contato
-     com logging estruturado do que importar uma lib pronta.
+Observabilidade (Modulo 6):
+  - Logs em JSON (um objeto por linha / NDJSON) com um Formatter proprio
+    sobre a biblioteca padrao `logging`.
+  - `request_id` (UUID v4) gerado no `before_request` e anexado a todos os
+    logs da requisicao, para correlacao no Grafana/Loki.
+  - Eventos: http_request, login_attempt (sucesso/falha), logout,
+    task_created e tasks_list_accessed.
+  - Nada sensivel e logado: nunca a senha, o cookie ou o token; da tarefa
+    so vai o tamanho da descricao.
+  - Saida em stdout e no arquivo logs/taskflow.log (lido pelo Promtail).
 
-  2. Um `request_id` (UUID v4) gerado a cada requisicao HTTP, no hook
-     `before_request` do Flask, e anexado a TODOS os logs emitidos
-     durante aquela requisicao. Isso permite correlacionar, em uma
-     stack de observabilidade (Grafana/Loki), todos os eventos de log
-     pertencentes a uma unica jornada de requisicao - essencial para
-     investigar incidentes.
+Variaveis de ambiente:
+  TASKFLOW_SECRET_KEY      obrigatoria - chave de sessao do Flask
+  TASKFLOW_ADMIN_PASSWORD  senha inicial do usuario "admin" (opcional)
+  TASKFLOW_ALUNO_PASSWORD  senha inicial do usuario "aluno" (opcional)
+  FLASK_DEBUG              "true" so em desenvolvimento (padrao: false)
+  FLASK_RUN_HOST           interface de escuta do servidor de desenvolvimento
+                           (padrao: 127.0.0.1); no container quem escuta e o
+                           gunicorn (gunicorn.conf.py)
+  DATABASE_URL             se definida, usa PostgreSQL (docker-compose.yml);
+                           ex.: postgresql://usuario:senha@db:5432/taskflow
+  TASKFLOW_DATABASE        caminho do SQLite quando nao ha DATABASE_URL
+                           (padrao: taskflow.db)
+  TASKFLOW_LOG_DIR         diretorio dos logs (padrao: logs)
 
-  3. Eventos de negocio/seguranca logados explicitamente:
-       - login_attempt (sucesso ou falha, SEM logar a senha)
-       - task_created
-       - tasks_list_accessed
-
-  4. Cuidado deliberado para NAO logar dados sensiveis em claro:
-     a senha nunca aparece nos logs; quando precisamos de algum tipo
-     de "pista" sobre um dado sensivel (ex.: para debugar duplicidade
-     de usuario), preferimos logar um hash curto em vez do valor.
-
-Para rodar:
-    pip install -r requirements-observabilidade.txt
-    python app_instrumented.py
-
-A aplicacao grava logs em dois lugares ao mesmo tempo:
-  - stdout (para quem quiser rodar via `docker compose logs`)
-  - arquivo `logs/taskflow.log` (para o Promtail ler e enviar ao Loki)
+Para rodar localmente:
+    pip install -r requirements.txt
+    export TASKFLOW_SECRET_KEY="$(openssl rand -hex 32)"
+    export TASKFLOW_ADMIN_PASSWORD="<senha>"
+    python app.py
 """
 
+import hmac
 import json
 import logging
 import os
+import secrets
 import sqlite3
 import time
 import uuid
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask, g, redirect, request, session, url_for
+from flask import (
+    Flask,
+    abort,
+    g,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 from werkzeug.security import check_password_hash, generate_password_hash
+
 
 # ---------------------------------------------------------------------------
 # 1. Formatter JSON customizado
@@ -80,9 +94,7 @@ class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         # Campos padronizados que TODO log da aplicacao vai ter.
         log_entry = {
-            "timestamp": datetime.fromtimestamp(
-                record.created, tz=timezone.utc
-            ).isoformat(),
+            "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -92,9 +104,7 @@ class JsonFormatter(logging.Formatter):
         # sao passados via `extra={...}` nas chamadas de log e ficam
         # disponiveis como atributos do record. Copiamos apenas os que
         # nao fazem parte do LogRecord padrao, para nao duplicar dados.
-        campos_padrao_do_record = logging.LogRecord(
-            "", 0, "", 0, "", None, None
-        ).__dict__.keys()
+        campos_padrao_do_record = logging.LogRecord("", 0, "", 0, "", None, None).__dict__.keys()
         for chave, valor in record.__dict__.items():
             if chave not in campos_padrao_do_record and chave not in log_entry:
                 log_entry[chave] = valor
@@ -113,7 +123,11 @@ def configurar_logging() -> logging.Logger:
       - StreamHandler (stdout) -> util para `docker compose logs -f`
       - RotatingFileHandler (logs/taskflow.log) -> lido pelo Promtail
     """
-    os.makedirs("logs", exist_ok=True)
+    # Diretorio dos logs configuravel: no container a raiz do sistema de
+    # arquivos e somente leitura (--read-only), entao os logs vao para um
+    # diretorio gravavel (volume/tmpfs) definido no Dockerfile.
+    log_dir = os.environ.get("TASKFLOW_LOG_DIR", "logs")
+    os.makedirs(log_dir, exist_ok=True)
 
     logger = logging.getLogger("taskflow")
     logger.setLevel(logging.INFO)
@@ -127,7 +141,7 @@ def configurar_logging() -> logging.Logger:
     # RotatingFileHandler evita que o arquivo de log cresca sem limite
     # durante a aula (5 MB por arquivo, mantendo 3 arquivos antigos).
     file_handler = RotatingFileHandler(
-        "logs/taskflow.log", maxBytes=5 * 1024 * 1024, backupCount=3
+        os.path.join(log_dir, "taskflow.log"), maxBytes=5 * 1024 * 1024, backupCount=3
     )
     file_handler.setFormatter(formatter)
 
@@ -147,18 +161,64 @@ _secret_key = os.environ.get("TASKFLOW_SECRET_KEY")
 if not _secret_key:
     raise RuntimeError(
         "Variavel de ambiente TASKFLOW_SECRET_KEY nao definida. "
-        "Ex: export TASKFLOW_SECRET_KEY=\"$(openssl rand -hex 32)\""
+        'Ex: export TASKFLOW_SECRET_KEY="$(openssl rand -hex 32)"'
     )
 app.config["SECRET_KEY"] = _secret_key
 
-DATABASE = "taskflow.db"
+# Cookie de sessao: inacessivel ao JavaScript e nao enviado em requisicoes
+# cross-site (defesa extra contra roubo de sessao e CSRF). Em producao com
+# HTTPS, defina tambem TASKFLOW_SECURE_COOKIE=true.
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = (
+    os.environ.get("TASKFLOW_SECURE_COOKIE", "false").lower() == "true"
+)
+
+# Banco de dados (Modulo 5 - Docker Compose):
+#   - DATABASE_URL definida -> PostgreSQL (servico "db" do docker-compose.yml,
+#     isolado na rede "backend", sem porta publicada no host).
+#   - DATABASE_URL ausente  -> SQLite em arquivo (desenvolvimento local e o
+#     container do DAST no CI). O caminho e configuravel porque no container
+#     a raiz e somente leitura e o arquivo fica em /data.
+DATABASE_URL = os.environ.get("DATABASE_URL")
+DATABASE = os.environ.get("TASKFLOW_DATABASE", "taskflow.db")
+USANDO_POSTGRES = bool(DATABASE_URL)
+
+
+class _PostgresDB:
+    """Adaptador minimo para o psycopg ter a mesma interface usada pelo
+    app com o sqlite3: db.execute(sql, params) -> cursor e db.commit().
+
+    As queries do app usam o placeholder "?" do sqlite3; aqui ele vira o
+    "%s" do psycopg. Os valores continuam indo SEMPRE como parametros
+    separados da string SQL (consulta parametrizada), nunca concatenados:
+    a protecao contra SQL Injection e a mesma nos dois bancos.
+    """
+
+    def __init__(self, url):
+        import psycopg
+        from psycopg.rows import dict_row
+
+        self._conn = psycopg.connect(url, row_factory=dict_row)
+
+    def execute(self, sql, params=()):
+        return self._conn.execute(sql.replace("?", "%s"), params)
+
+    def commit(self):
+        self._conn.commit()
+
+    def close(self):
+        self._conn.close()
 
 
 def get_db():
     db = getattr(g, "_database", None)
     if db is None:
-        db = g._database = sqlite3.connect(DATABASE)
-        db.row_factory = sqlite3.Row
+        if USANDO_POSTGRES:
+            db = g._database = _PostgresDB(DATABASE_URL)
+        else:
+            db = g._database = sqlite3.connect(DATABASE)
+            db.row_factory = sqlite3.Row
     return db
 
 
@@ -169,26 +229,50 @@ def close_connection(exception):
         db.close()
 
 
+# Esquema das tabelas. So muda o tipo da chave primaria autoincremental
+# (SERIAL no PostgreSQL, INTEGER AUTOINCREMENT no SQLite).
+_ESQUEMA_SQLITE = """
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        done INTEGER DEFAULT 0,
+        FOREIGN KEY (user_id) REFERENCES users (id)
+    );
+"""
+_ESQUEMA_POSTGRES = (
+    """
+    CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS tasks (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users (id),
+        title TEXT NOT NULL,
+        description TEXT,
+        done INTEGER DEFAULT 0
+    )
+    """,
+)
+
+
 def init_db():
     db = get_db()
-    db.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS tasks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            title TEXT NOT NULL,
-            description TEXT,
-            done INTEGER DEFAULT 0,
-            FOREIGN KEY (user_id) REFERENCES users (id)
-        );
-        """
-    )
+    if USANDO_POSTGRES:
+        for comando in _ESQUEMA_POSTGRES:
+            db.execute(comando)
+    else:
+        db.executescript(_ESQUEMA_SQLITE)
     db.commit()
 
     # Usuarios iniciais: as senhas vem de variaveis de ambiente (nunca do
@@ -205,8 +289,11 @@ def init_db():
                 extra={"event": "seed_user_skipped", "username": username},
             )
             continue
+        # "Insere se nao existir": sintaxe padrao SQL (ON CONFLICT), aceita
+        # tanto pelo PostgreSQL quanto pelo SQLite 3.24+.
         db.execute(
-            "INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)",
+            "INSERT INTO users (username, password) VALUES (?, ?) "
+            "ON CONFLICT (username) DO NOTHING",
             (username, generate_password_hash(senha)),
         )
     db.commit()
@@ -229,6 +316,60 @@ def gerar_request_id():
     g.start_time = time.time()
 
 
+# ---------------------------------------------------------------------------
+# Protecao CSRF (sem dependencia extra): um token aleatorio por sessao e
+# incluido como campo oculto "csrf_token" em todo formulario POST e
+# conferido aqui antes de qualquer view. Detectado pelo ZAP (regra 10202).
+# ---------------------------------------------------------------------------
+def csrf_token():
+    if "_csrf_token" not in session:
+        session["_csrf_token"] = secrets.token_urlsafe(32)
+    return session["_csrf_token"]
+
+
+app.jinja_env.globals["csrf_token"] = csrf_token
+
+
+@app.before_request
+def validar_csrf():
+    if request.method != "POST":
+        return
+    esperado = session.get("_csrf_token")
+    recebido = request.form.get("csrf_token", "")
+    if not esperado or not hmac.compare_digest(esperado, recebido):
+        logger.warning(
+            "token CSRF ausente ou invalido",
+            extra={
+                "event": "csrf_rejected",
+                "path": request.path,
+                "ip": request.remote_addr,
+                "request_id": g.get("request_id"),
+            },
+        )
+        abort(400)
+
+
+# ---------------------------------------------------------------------------
+# Cabecalhos de seguranca em todas as respostas (achados do ZAP Baseline:
+# 10020, 10021, 10036, 10038, 10063 e 90004).
+# ---------------------------------------------------------------------------
+@app.after_request
+def adicionar_cabecalhos_de_seguranca(response):
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "frame-ancestors 'none'; form-action 'self'; base-uri 'self'; "
+        "object-src 'none'"
+    )
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "same-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
+    return response
+
+
 @app.after_request
 def logar_fim_da_requisicao(response):
     duracao_ms = round((time.time() - g.get("start_time", time.time())) * 1000, 2)
@@ -242,8 +383,16 @@ def logar_fim_da_requisicao(response):
             "status_code": response.status_code,
             "duration_ms": duracao_ms,
             "user": session.get("username"),
+            # IP de origem tambem no evento de toda requisicao (nao so no
+            # login): permite ver no Grafana o volume de trafego por IP.
+            "ip": request.remote_addr,
         },
     )
+    # Devolve o request_id ao cliente: quem reporta um erro (ou o time de
+    # resposta a incidente) informa esse valor e acha no Loki todos os
+    # eventos daquela requisicao: {job="taskflow"} | json | request_id="..."
+    # E um UUID aleatorio, sem nenhum dado interno.
+    response.headers["X-Request-ID"] = g.get("request_id", "")
     return response
 
 
@@ -317,15 +466,9 @@ def login():
             },
         )
 
-    return f"""
-    <h1>TaskFlow - Login</h1>
-    <form method="post">
-        Usuario: <input type="text" name="username"><br>
-        Senha: <input type="password" name="password"><br>
-        <input type="submit" value="Entrar">
-    </form>
-    <p style="color:red">{error or ""}</p>
-    """
+    # Template Jinja2 com autoescape: a mensagem de erro nunca e
+    # interpretada como HTML (fecha o sink de XSS refletido no login).
+    return render_template("login.html", error=error)
 
 
 @app.route("/logout")
@@ -351,18 +494,16 @@ def tasks():
     db = get_db()
 
     if search:
-        query = (
-            "SELECT * FROM tasks WHERE user_id = "
-            + str(session["user_id"])
-            + " AND title LIKE '%"
-            + search
-            + "%'"
-        )
-        rows = db.execute(query).fetchall()
-    else:
+        # Consulta parametrizada: o termo de busca vai como parametro, nunca
+        # concatenado na string SQL (evita SQL Injection pelo parametro "q").
+        # LOWER(...) nos dois lados: busca sem diferenciar maiusculas, igual
+        # nos dois bancos (o LIKE do PostgreSQL diferencia, o do SQLite nao).
         rows = db.execute(
-            "SELECT * FROM tasks WHERE user_id = ?", (session["user_id"],)
+            "SELECT * FROM tasks WHERE user_id = ? AND LOWER(title) LIKE LOWER(?)",
+            (session["user_id"], f"%{search}%"),
         ).fetchall()
+    else:
+        rows = db.execute("SELECT * FROM tasks WHERE user_id = ?", (session["user_id"],)).fetchall()
 
     # Acesso a lista de tarefas (recurso "sensivel" do ponto de vista de
     # cada usuario, pois pertence a ele). Logar esse acesso permite,
@@ -379,25 +520,15 @@ def tasks():
         },
     )
 
-    items = ""
-    for row in rows:
-        items += f"""
-        <li>
-            <b>{row['title']}</b> - {row['description']}
-            {'(feita)' if row['done'] else ''}
-        </li>
-        """
-
-    return f"""
-    <h1>Minhas tarefas ({session['username']})</h1>
-    <form method="get">
-        <input type="text" name="q" placeholder="buscar tarefa">
-        <input type="submit" value="Buscar">
-    </form>
-    <ul>{items}</ul>
-    <a href="{url_for('new_task')}">Nova tarefa</a> |
-    <a href="{url_for('logout')}">Sair</a>
-    """
+    # Template Jinja2 com autoescape (sem "| safe"): titulo, descricao,
+    # username e o termo de busca "q" sao escapados automaticamente,
+    # fechando o XSS armazenado e o refletido pelo parametro de busca.
+    return render_template(
+        "tasks.html",
+        tasks=rows,
+        username=session["username"],
+        search=search,
+    )
 
 
 @app.route("/tasks/new", methods=["GET", "POST"])
@@ -432,39 +563,13 @@ def new_task():
         )
         return redirect(url_for("tasks"))
 
-    return """
-    <h1>Nova tarefa</h1>
-    <form method="post">
-        Titulo: <input type="text" name="title"><br>
-        Descricao: <textarea name="description"></textarea><br>
-        <input type="submit" value="Salvar">
-    </form>
-    """
+    return render_template("new_task.html")
 
 
-@app.route("/debug/info")
-def debug_info():
-    # Vulnerabilidade mantida de proposito - endpoint de debug exposto
-    # sem autenticacao (ver app-exemplo/app.py). Logamos o acesso a ele
-    # com nivel WARNING, pois e um recurso sensivel que nunca deveria
-    # ser publico.
-    import platform
-    import sys
-
-    logger.warning(
-        "acesso ao endpoint de debug",
-        extra={
-            "event": "sensitive_endpoint_accessed",
-            "path": "/debug/info",
-            "ip": request.remote_addr,
-            "request_id": g.get("request_id"),
-        },
-    )
-
-    return {
-        "python_version": sys.version,
-        "platform": platform.platform(),
-    }
+# O endpoint /debug/info foi REMOVIDO (Modulo 4): ele expunha, sem
+# autenticacao, detalhes do ambiente (e, na versao original, a SECRET_KEY).
+# Se for preciso um health check, crie uma rota que devolva apenas
+# {"status": "ok"}, sem nenhum dado interno.
 
 
 if __name__ == "__main__":
@@ -474,4 +579,18 @@ if __name__ == "__main__":
         "aplicacao TaskFlow (instrumentada) iniciando",
         extra={"event": "app_startup"},
     )
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    # debug controlado por variavel de ambiente e DESLIGADO por padrao: o
+    # debugger interativo do Werkzeug permite executar codigo no servidor.
+    #   export FLASK_DEBUG=true   # apenas em desenvolvimento local
+    debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() in ("1", "true", "yes")
+    # Host padrao 127.0.0.1 (so a propria maquina). Dentro de um container
+    # e preciso escutar em todas as interfaces: defina FLASK_RUN_HOST no
+    # Dockerfile/compose. Em producao, use gunicorn em vez de app.run().
+    host = os.environ.get("FLASK_RUN_HOST", "127.0.0.1")
+    # O servidor de desenvolvimento do Werkzeug sempre anuncia a propria
+    # versao e a do Python no header "Server" (ZAP 10036). Escondemos.
+    from werkzeug.serving import WSGIRequestHandler
+
+    WSGIRequestHandler.server_version = "TaskFlow"
+    WSGIRequestHandler.sys_version = ""
+    app.run(host=host, port=5000, debug=debug_mode)
