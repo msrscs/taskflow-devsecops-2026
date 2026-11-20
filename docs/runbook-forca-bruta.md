@@ -7,6 +7,77 @@ Este runbook foi **exercitado** em 12/11/2026, com um ataque simulado na
 stack local. Os números das seções 2 a 4 são os dados reais desse exercício
 (evidências em [`docs/evidencias/observabilidade/`](evidencias/observabilidade/)).
 
+## Como reproduzir o exercício (ambiente de teste)
+
+Passo a passo para qualquer pessoa subir a stack do zero, rodar o ataque e
+encontrá-lo no Grafana. Leva cerca de 5 minutos (o primeiro build baixa as
+imagens).
+
+**Pré-requisitos:** Docker com Compose v2 (`docker compose version`), `git`,
+`openssl` e as portas `127.0.0.1:5000` e `127.0.0.1:3000` livres.
+
+**1. Clonar o repositório e criar o `.env`** com segredos aleatórios (o `.env`
+não é versionado; o `.env.example` é só o modelo):
+
+```bash
+git clone https://github.com/msrscs/taskflow-devsecops-2026.git
+cd taskflow-devsecops-2026
+cp .env.example .env
+sed -i "s/^TASKFLOW_SECRET_KEY=.*/TASKFLOW_SECRET_KEY=$(openssl rand -hex 32)/" .env
+sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 24)/" .env
+sed -i "s/^TASKFLOW_ADMIN_PASSWORD=.*/TASKFLOW_ADMIN_PASSWORD=$(openssl rand -hex 12)/" .env
+sed -i "s/^GRAFANA_ADMIN_PASSWORD=.*/GRAFANA_ADMIN_PASSWORD=$(openssl rand -hex 16)/" .env
+```
+
+> No macOS, use `sed -i ''` no lugar de `sed -i`.
+
+**2. Subir app + PostgreSQL + Loki + Promtail + Grafana:**
+
+```bash
+docker compose --profile observabilidade up -d --build
+docker compose --profile observabilidade ps   # app, db e grafana devem ficar "healthy" (~30 s)
+```
+
+**3. Conferir que a app responde e que os logs chegam ao Loki:**
+
+```bash
+curl -sI http://127.0.0.1:5000/login | grep -i x-request-id
+grep -E '^(TASKFLOW_ADMIN_PASSWORD|GRAFANA_ADMIN_PASSWORD)=' .env   # senhas para os logins abaixo
+```
+
+- **TaskFlow:** <http://127.0.0.1:5000>. Entre como `admin` com a
+  `TASKFLOW_ADMIN_PASSWORD`. Errar a senha 1 ou 2 vezes antes simula o
+  usuário legítimo, que **não** deve disparar o alerta.
+- **Grafana:** <http://127.0.0.1:3000>. Entre como `admin` com a
+  `GRAFANA_ADMIN_PASSWORD`. Em *Explore* (datasource Loki), a consulta
+  `{job="taskflow"}` já deve mostrar os eventos em JSON.
+
+**4. Rodar o ataque simulado** a partir de um container na rede `frontend`,
+com IP próprio:
+
+```bash
+docker run --rm --network taskflow_frontend -v "$PWD/scripts":/s:ro \
+  curlimages/curl:8.17.0 sh /s/brute_force.sh http://app:5000 admin 50 0.2
+```
+
+Saída esperada: 50 linhas `tentativa N -> HTTP 200` e, no fim, `falhas=50 sucessos=0`.
+
+**5. Encontrar o ataque no Grafana:**
+
+- *Explore* → rode a [query de detecção](#query-de-detecção-logql): aparece
+  o IP do container atacante (rede `172.x`) com 50 falhas.
+- *Dashboards → TaskFlow → TaskFlow - Seguranca*: pico no painel Q1.
+- *Alerting → Alert rules → "Forca bruta no login"*: passa a **Firing** em
+  até ~1 a 2 minutos (a regra é avaliada a cada 1 minuto), só para o IP do
+  atacante.
+- A partir daqui, siga as fases 2 a 4 abaixo.
+
+**6. Encerrar e apagar tudo** (containers, redes e volumes com os dados de teste):
+
+```bash
+docker compose --profile observabilidade down -v
+```
+
 ## Condição de disparo
 
 > **Mais de 10 eventos `login_attempt` com `result="failure"` vindos do mesmo

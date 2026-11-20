@@ -58,4 +58,4 @@ groups:
         annotations:
           summary: "Possivel forca bruta no login a partir de {{ $labels.ip }}"
           description: "{{ $values.B }} falhas de login do IP {{ $labels.ip }} nos ultimos 5 minutos (limite: 10)."
-          runbook_url: "https://github.com/msrscs/taskflow-test/blob/main/docs/runbook-forca-bruta.md"
+          runbook_url: "https://github.com/msrscs/taskflow-devsecops-2026/blob/main/docs/runbook-forca-bruta.md"

@@ -26,7 +26,7 @@ As duas demos ao vivo dependem disto. Sem a preparação, elas não cabem no
 tempo.
 
 ```bash
-cd ~/taskflow-test && git switch main && git pull
+cd ~/taskflow-devsecops-2026 && git switch main && git pull
 eval "$(ssh-agent -s)" && ssh-add ~/.ssh/id_ed25519   # passphrase AGORA, não durante a demo
 gh auth status                     # logado como msrscs
 
@@ -56,7 +56,7 @@ Peça para um code owner **aprovar** esse PR antes da apresentação. É isso qu
 mostra que nem a aprovação libera o merge.
 
 **Abas abertas no navegador, nesta ordem:**
-1. README do repositório (`github.com/msrscs/taskflow-test`)
+1. README do repositório (`github.com/msrscs/taskflow-devsecops-2026`)
 2. O PR da demo, aba **Conversation**
 3. **Actions** do repositório
 4. Settings → Rules → ruleset **main**

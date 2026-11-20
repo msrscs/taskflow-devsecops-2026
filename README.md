@@ -1,11 +1,11 @@
 # TaskFlow — Esteira DevSecOps
 
-![CI](https://github.com/msrscs/taskflow-test/actions/workflows/ci-basico.yml/badge.svg)
-![SAST](https://github.com/msrscs/taskflow-test/actions/workflows/sast.yml/badge.svg)
-![SCA](https://github.com/msrscs/taskflow-test/actions/workflows/sca.yml/badge.svg)
-![Container](https://github.com/msrscs/taskflow-test/actions/workflows/container.yml/badge.svg)
-![DAST](https://github.com/msrscs/taskflow-test/actions/workflows/dast.yml/badge.svg)
-![IaC](https://github.com/msrscs/taskflow-test/actions/workflows/iac-scan.yml/badge.svg)
+![CI](https://github.com/msrscs/taskflow-devsecops-2026/actions/workflows/ci-basico.yml/badge.svg)
+![SAST](https://github.com/msrscs/taskflow-devsecops-2026/actions/workflows/sast.yml/badge.svg)
+![SCA](https://github.com/msrscs/taskflow-devsecops-2026/actions/workflows/sca.yml/badge.svg)
+![Container](https://github.com/msrscs/taskflow-devsecops-2026/actions/workflows/container.yml/badge.svg)
+![DAST](https://github.com/msrscs/taskflow-devsecops-2026/actions/workflows/dast.yml/badge.svg)
+![IaC](https://github.com/msrscs/taskflow-devsecops-2026/actions/workflows/iac-scan.yml/badge.svg)
 
 A TaskFlow é um gerenciador de tarefas (to-do list) em Python/Flask, usado na
 disciplina de DevSecOps. Partindo da versão **propositalmente vulnerável**
@@ -22,8 +22,8 @@ protegida por uma esteira de CI segura no GitHub Actions. Cada ferramenta é um
 |---|---|
 | **Instituição** | Cesar School |
 | **Disciplina** | DevSecOps |
-| **Professores** | Cris Apolinário<br>Diego Buarque de Amorim Batista |
-| **Equipe** | Artur Torres Lima Cavalcanti<br>Eduardo Henrique Ferreira Fonseca Barbosa<br>Gabriel de Medeiros Almeida<br>Mauro Sérgio Rezende da Silva<br>Silvio Barros Tenório |
+| **Professores** | • Cris Apolinário<br>• Diego Buarque de Amorim Batista |
+| **Equipe** | • André Luis Freire de Andrade Sieczko<br>• Artur Torres Lima Cavalcanti<br>• Eduardo Henrique Ferreira Fonseca Barbosa<br>• Gabriel de Medeiros Almeida<br>• Mauro Sérgio Rezende da Silva<br>• Silvio Barros Tenório |
 
 ## Sumário
 
