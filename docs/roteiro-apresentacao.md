@@ -8,7 +8,7 @@ integrante narra a sua parte e diz quando trocar de aba.
 |---|---|---|---|---|
 | 1 | Contexto, equipe e arquitetura | Artur | 2 min | 2 min |
 | 2 | A esteira e a **demo do PR bloqueado** (ao vivo) | Mauro | 4 min | 6 min |
-| 3 | SAST, segredos, SCA e container: antes × depois | Eduardo | 3 min | 9 min |
+| 3 | SAST, segredos, SCA (com Dependabot) e container: antes × depois | Eduardo | 3 min | 9 min |
 | 4 | DAST: o ZAP acusando e a correção | Gabriel | 2,5 min | 11,5 min |
 | 5 | IaC (Checkov e Trivy) e hardening do host (Lynis) | Silvio | 2,5 min | 14 min |
 | 6 | **Incidente ao vivo**: força bruta → Grafana → runbook | Gabriel e Mauro | 4 min | 18 min |
@@ -45,12 +45,17 @@ grep GRAFANA_ADMIN_PASSWORD .env    # anotar para logar no Grafana
 resultado e a correção):
 
 ```bash
-git switch -c demo/shift-left
+git switch -c demo/shift-left-ao-vivo
 sed -i "s/{{ task\['title'\] }}/{{ task['title'] | safe }}/" templates/tasks.html
+git diff                            # uma linha: a 39, com "| safe"
 git commit -am "demo: desliga o autoescape do titulo (deve ser bloqueado)"
-git push -u origin demo/shift-left
-gh pr create --base main --title "demo: shift-left (NAO FAZER MERGE)" --body "PR de demonstracao."
+git push -u origin demo/shift-left-ao-vivo
+gh pr create --base main --title "demo: shift-left ao vivo (NAO FAZER MERGE)" --body "PR de demonstracao."
 ```
+
+Use um nome de branch **novo**: a `demo/shift-left` é a do
+[PR #15](https://github.com/msrscs/taskflow-devsecops-2026/pull/15), a execução
+já registrada nas evidências.
 
 Peça para um code owner **aprovar** esse PR antes da apresentação. É isso que
 mostra que nem a aprovação libera o merge.
@@ -59,11 +64,12 @@ mostra que nem a aprovação libera o merge.
 1. README do repositório (`github.com/msrscs/taskflow-devsecops-2026`)
 2. O PR da demo, aba **Conversation**
 3. **Actions** do repositório
-4. Settings → Rules → ruleset **main**
-5. `docs/evidencias/README.md` no GitHub
-6. `docs/owasp-mapeamento.md`
-7. Grafana (`http://127.0.0.1:3000`) já logado, no dashboard *TaskFlow - Seguranca*
-8. `docs/runbook-forca-bruta.md`
+4. **Security → Dependabot → Closed** (os 25 alertas), logado como `msrscs`
+5. Settings → Rules → ruleset **main**
+6. `docs/evidencias/README.md` no GitHub
+7. `docs/owasp-mapeamento.md`
+8. Grafana (`http://127.0.0.1:3000`) já logado, no dashboard *TaskFlow - Seguranca*
+9. `docs/runbook-forca-bruta.md`
 
 **Plano B:** se a internet, o Actions ou o Docker falharem, cada demo tem
 prints em `docs/evidencias/` (lista no fim deste roteiro).
@@ -120,14 +126,19 @@ prints em `docs/evidencias/` (lista no fim deste roteiro).
    Enquanto os checks rodam (~1,5 min), o Eduardo começa a parte 3. Volta-se ao
    PR no fim da parte 3 para mostrar **tudo verde**. A aprovação antiga terá
    caído (*Dismiss stale approvals*), e isso também vale mostrar.
-5. Depois da apresentação: `gh pr close demo/shift-left --delete-branch`.
+5. Depois da apresentação: `gh pr close demo/shift-left-ao-vivo --delete-branch`.
+
+Se o Actions estiver lento ou fora do ar, mostre o
+[PR #15](https://github.com/msrscs/taskflow-devsecops-2026/pull/15) (mesma demo,
+executada em 20/11/2026) e os prints `demo-*.png`.
 
 > **Frase-chave:** "Nem aprovação humana passa por cima do gate. Quem decide é
 > o check."
 
 ## 3. SAST, segredos, SCA e container: antes × depois (Eduardo, 3 min)
 
-**Tela:** `docs/evidencias/README.md`, tabela *Resumo*.
+**Tela:** `docs/evidencias/README.md`, tabela *Resumo*; depois a aba
+Security → Dependabot.
 
 | Ferramenta | Antes | Depois |
 |---|---|---|
@@ -143,6 +154,15 @@ prints em `docs/evidencias/` (lista no fim deste roteiro).
 - **Ponto interessante:** o **Gitleaks não pegou** os segredos didáticos
   (`admin123` tem entropia baixa). Quem pegou foram o **Semgrep** e o
   **Trivy config**. Por isso a esteira tem camadas sobrepostas.
+- **Dependabot (aba Security → Dependabot → Closed):**
+  - para a demo, o `requirements.txt` foi rebaixado para as versões do
+    `app-exemplo/` (commit `927ade1`): **24 alertas** abertos na hora
+    (3 critical, 7 high) e o `pip-audit` vermelho;
+  - restauradas as versões (`2210264`), os alertas fecharam sozinhos como
+    *fixed* em 8 minutos;
+  - os PRs semanais do Dependabot passam pelos mesmos 9 required checks.
+  - A aba só é visível para quem tem escrita no repositório: mostrar logado
+    como `msrscs` (plano B: `dependabot-alertas.png`).
 - **FALHA 1 na prática:** o `FROM python:latest` original hoje resolve para
   Python 3.15, e a app antiga **nem sobe**. Por isso fixamos a imagem base por
   **digest**.
@@ -244,8 +264,10 @@ Escolham **uma** (sugestão: a primeira):
   deixa de ser 100% reprodutível.
 - **Promtail**, que foi descontinuado em 2026. Ele é mais simples e é o que o
   material usa. O substituto natural seria o Grafana Alloy.
-- **Repositório público.** O PDF pedia privado, mas branch protection em repo
-  privado exige plano pago.
+- **Repositório público.** O PDF pedia privado, mas o professor orientou
+  deixar público (e branch protection em repo privado de conta pessoal exige
+  plano pago). Por isso nenhum segredo vai para o repositório: o `.env` é
+  ignorado e o CI gera os segredos na hora.
 
 ## 8. Aprendizado mais impactante e fechamento (Artur e Silvio, 1 min)
 
@@ -278,13 +300,14 @@ Encerrar com: **"Perguntas?"**
 
 | Demo | Prints em `docs/evidencias/` |
 |---|---|
-| PR bloqueado | `demo-checks-vermelhos.png`, `demo-merge-bloqueado.png`, `demo-checks-verdes.png` |
+| PR bloqueado ([PR #15](https://github.com/msrscs/taskflow-devsecops-2026/pull/15)) | `demo-checks-vermelhos.png`, `demo-merge-bloqueado.png`, `demo-erro-sast-semgrep.png`, `demo-checks-verdes.png` |
+| Dependabot | `dependabot-alertas.png` |
 | Incidente | `grafana-forca-bruta.png`, `grafana-alerta.png`, `grafana-explore-request-id.png`, `grafana-explore-sem-senha.png` |
 
 ## Depois da apresentação
 
 ```bash
-gh pr close demo/shift-left --delete-branch
+gh pr close demo/shift-left-ao-vivo --delete-branch
 docker compose --profile observabilidade down -v
 rm -f .env
 ```
