@@ -137,6 +137,8 @@ executada em 20/11/2026) e os prints `demo-*.png`.
 
 ## 3. SAST, segredos, SCA e container: antes × depois (Eduardo, 3 min)
 
+**Responsável:** Eduardo Henrique Ferreira Fonseca Barbosa (`ehffb`)
+
 **Tela:** `docs/evidencias/README.md`, tabela *Resumo*; depois a aba
 Security → Dependabot.
 
