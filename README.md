@@ -401,6 +401,8 @@ passam pelos mesmos 9 required checks antes do merge.
 
 A aba de alertas do Dependabot só é visível para quem tem permissão de escrita
 no repositório; por isso a demonstração é mostrada ao vivo na apresentação.
+Print da aba com os 25 alertas fechados como *fixed*:
+[`dependabot-alertas.png`](docs/evidencias/dependabot-alertas.png).
 
 ## Decisões técnicas e trade-offs
 

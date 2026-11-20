@@ -48,6 +48,7 @@ tentativas em 16 s.
 | [`demo-merge-bloqueado.png`](demo-merge-bloqueado.png) | Mesmo **aprovado por um code owner**, o merge fica bloqueado porque o Semgrep é required check |
 | [`demo-erro-sast-semgrep.png`](demo-erro-sast-semgrep.png) | Log do job `SAST - Semgrep`: regra `template-unescaped-with-safe` na linha 39 de `templates/tasks.html`, `exit code 1` |
 | [`demo-checks-verdes.png`](demo-checks-verdes.png) | Depois do revert, os 9 checks passam |
+| [`dependabot-alertas.png`](dependabot-alertas.png) | *Security → Dependabot → Closed*: os 25 alertas (critical, high e moderate em Flask, Werkzeug, PyYAML, Jinja2 e requests) fechados como *fixed* depois da restauração das versões (commit `2210264`) e do PR #9 |
 | [`grafana-forca-bruta.png`](grafana-forca-bruta.png) | Dashboard: 52 falhas de login, pico de 50 do IP atacante acima do limite (10) e o IP legítimo com 2 |
 | [`grafana-alerta.png`](grafana-alerta.png) | Regra provisionada pelo repositório em **Firing**: `172.21.0.4` em *Alerting* e `172.21.0.1` em *Normal* (sem falso positivo) |
 | [`grafana-explore-request-id.png`](grafana-explore-request-id.png) | Q3: uma requisição do atacante rastreada pelo `request_id` (`POST /login`, IP, status) |
