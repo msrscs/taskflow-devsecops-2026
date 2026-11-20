@@ -69,3 +69,39 @@ Cross-Origin-Resource-Policy: same-origin
 Cross-Origin-Opener-Policy: same-origin
 Cross-Origin-Embedder-Policy: require-corp
 Set-Cookie: session=<omitido>; HttpOnly; Path=/; SameSite=Lax
+
+===========================================================================
+EXECUCAO NO GITHUB - 20/11/2026 - PR #15 (msrscs/taskflow-devsecops-2026)
+===========================================================================
+Branch demo/shift-left, cenario 1 (| safe em templates/tasks.html, linha 39).
+Commit 073c862 (falha) -> 4346d3f (revert). PR fechado sem merge.
+
+Checks com a falha (commit 073c862):
+  SAST - Semgrep               fail  33s
+  SCA - pip-audit              pass
+  Secret Scanning - Gitleaks   pass
+  build-e-lint                 pass
+  checkov                      pass
+  terraform-validate           pass
+  trivy-config                 pass
+  trivy-image                  pass
+  zap-baseline                 pass   (Baseline e passivo: nao cadastra tarefa com payload)
+  mergeStateStatus: BLOCKED (mesmo com 1 aprovacao de code owner)
+
+Log do job "SAST - Semgrep" (run 44740463344):
+
+    templates/tasks.html
+    ❯❱ python.flask.security.xss.audit.template-unescaped-with-safe.template-unescaped-with-safe
+          ❰❰ Blocking ❱❱
+          Detected a segment of a Flask template where autoescaping is explicitly disabled with '| safe'
+          filter. This allows rendering of raw HTML in this segment. Ensure no user data is rendered here,
+          otherwise this is a cross-site scripting (XSS) vulnerability.
+          Details: https://sg.run/W8og
+
+           39┆ <b>{{ task['title'] | safe }}</b> - {{ task['description'] }}
+
+ • Findings: 1 (1 blocking)
+Ran 212 rules on 71 files: 1 finding.
+##[error]Process completed with exit code 1.
+
+Depois do revert (commit 4346d3f): os 9 checks passaram.

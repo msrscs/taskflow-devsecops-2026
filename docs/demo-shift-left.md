@@ -8,6 +8,12 @@ Os dois cenários abaixo foram **ensaiados localmente em 12/11/2026**, com as
 mesmas versões e opções dos workflows. As saídas reais estão em
 [`evidencias/demo-shift-left.txt`](evidencias/demo-shift-left.txt).
 
+O cenário 1 foi **executado no GitHub em 20/11/2026** no
+[PR #15](https://github.com/msrscs/taskflow-devsecops-2026/pull/15): o
+`SAST - Semgrep` ficou vermelho, o merge foi bloqueado mesmo com a aprovação de
+um code owner e, depois do revert, os 9 checks passaram (prints em
+[`evidencias/`](evidencias/README.md#prints)).
+
 | Cenário | Falha introduzida | Check que fica vermelho | OWASP Top 10:2025 |
 |---|---|---|---|
 | 1 | `\| safe` no título da tarefa (XSS) | `SAST - Semgrep` (`template-unescaped-with-safe`) | A05 Injection |
