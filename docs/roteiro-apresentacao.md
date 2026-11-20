@@ -78,6 +78,8 @@ prints em `docs/evidencias/` (lista no fim deste roteiro).
 
 ## 1. Contexto, equipe e arquitetura (Artur, 2 min)
 
+**Responsável:** Artur Torres Lima Cavalcanti (`ArturTorres-Cy`)
+
 **Tela:** README, seção *Identificação*, e depois os dois diagramas Mermaid.
 
 - Apresentar a equipe e os professores (seção *Identificação*).
