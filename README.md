@@ -370,11 +370,39 @@ PR que reintroduz `| safe` no template deixa o `SAST - Semgrep` vermelho, e um
 que remove o header `nosniff` deixa o `zap-baseline` vermelho. O merge fica
 bloqueado até o revert.
 
-Executada no GitHub em 12/11/2026 (PR #18, fechado sem merge). Mesmo com a
-aprovação de um code owner, o merge ficou bloqueado pelo Semgrep:
+Executada no GitHub em 20/11/2026
+([PR #15](https://github.com/msrscs/taskflow-devsecops-2026/pull/15), fechado
+sem merge). Mesmo com a aprovação de um code owner, o merge ficou bloqueado
+pelo Semgrep (regra `template-unescaped-with-safe`, linha 39 de
+`templates/tasks.html`). Os outros 8 checks passaram, inclusive o ZAP: o
+Baseline é passivo e não cadastra tarefas com payload, então é o SAST que
+barra esse XSS antes do merge.
 [checks vermelhos](docs/evidencias/demo-checks-vermelhos.png),
-[merge bloqueado](docs/evidencias/demo-merge-bloqueado.png) e
+[merge bloqueado](docs/evidencias/demo-merge-bloqueado.png),
+[log do Semgrep](docs/evidencias/demo-erro-sast-semgrep.png) e
 [checks verdes depois do revert](docs/evidencias/demo-checks-verdes.png).
+
+### Demo do Dependabot
+
+O Dependabot (`.github/dependabot.yml`) monitora `pip`, `github-actions`,
+`docker`, `docker-compose` e `terraform`. Para demonstrar os alertas, em
+17/11/2026 o `requirements.txt` foi temporariamente rebaixado para as versões
+vulneráveis do `app-exemplo/` original e depois restaurado:
+
+| Commit | O que fez | Resultado |
+|---|---|---|
+| `927ade1` | Fixou `Flask==0.12.2`, `Werkzeug==0.15.4`, `Jinja2==2.11.3`, `PyYAML==5.1`, `requests==2.19.1` | **24 alertas abertos** na aba *Security → Dependabot* (3 critical, 7 high, 12 medium, 2 low) e o `SCA - pip-audit` vermelho |
+| `2210264` | Restaurou as versões atualizadas | Os 24 alertas foram fechados automaticamente como *fixed* 8 minutos depois |
+
+O alerta restante (`werkzeug < 3.1.9`) foi resolvido pelo PR #9. Além dos
+alertas, o Dependabot abre PRs semanais de atualização (ex.: PR #7, `werkzeug`
+3.1.6 → 3.1.9, fechado porque a mesma atualização entrou pelo PR #9), que
+passam pelos mesmos 9 required checks antes do merge.
+
+A aba de alertas do Dependabot só é visível para quem tem permissão de escrita
+no repositório; por isso a demonstração é mostrada ao vivo na apresentação.
+Print da aba com os 25 alertas fechados como *fixed*:
+[`dependabot-alertas.png`](docs/evidencias/dependabot-alertas.png).
 
 ## Decisões técnicas e trade-offs
 

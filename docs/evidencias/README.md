@@ -5,8 +5,9 @@ versões da TaskFlow:
 
 - **antes**: `app-exemplo/` original da disciplina (código vulnerável +
   Dockerfile com as FALHAS 1 a 6), imagem `taskflow:antes`.
-- **depois**: a `main` deste repositório (merge do PR #12), imagem
-  `taskflow:depois`, construída a partir do `Dockerfile` da raiz.
+- **depois**: a versão corrigida da TaskFlow (o mesmo código da `main` deste
+  repositório), imagem `taskflow:depois`, construída a partir do `Dockerfile`
+  da raiz.
 
 Versões usadas, as mesmas fixadas nos workflows: Semgrep 1.185.0, Trivy 0.70.0,
 Gitleaks 8.30.1, pip-audit 2.10.1 e ZAP Baseline (`ghcr.io/zaproxy/zaproxy:stable`)
@@ -34,16 +35,20 @@ shift-left (Semgrep e ZAP ficando vermelhos com uma falha introduzida):
 
 ## Prints
 
-Capturados em 12/11/2026. Os prints do Grafana são todos da mesma
+Os prints da demo de shift-left foram capturados em 20/11/2026, no
+[PR #15](https://github.com/msrscs/taskflow-devsecops-2026/pull/15) deste
+repositório. Os do Grafana, em 12/11/2026, e são todos da mesma
 simulação (20:12–20:13, horário de Brasília): o usuário legítimo `172.21.0.1`
 errou a senha 2 vezes e entrou, e em seguida o atacante `172.21.0.4` fez 50
 tentativas em 16 s.
 
 | Print | O que prova |
 |---|---|
-| [`demo-checks-vermelhos.png`](demo-checks-vermelhos.png) | Demo de shift-left: o PR #18 reintroduz `\| safe` e o `SAST - Semgrep` falha (os outros 8 checks passam) |
+| [`demo-checks-vermelhos.png`](demo-checks-vermelhos.png) | Demo de shift-left: o PR #15 reintroduz `\| safe` e o `SAST - Semgrep` falha (os outros 8 checks passam) |
 | [`demo-merge-bloqueado.png`](demo-merge-bloqueado.png) | Mesmo **aprovado por um code owner**, o merge fica bloqueado porque o Semgrep é required check |
+| [`demo-erro-sast-semgrep.png`](demo-erro-sast-semgrep.png) | Log do job `SAST - Semgrep`: regra `template-unescaped-with-safe` na linha 39 de `templates/tasks.html`, `exit code 1` |
 | [`demo-checks-verdes.png`](demo-checks-verdes.png) | Depois do revert, os 9 checks passam |
+| [`dependabot-alertas.png`](dependabot-alertas.png) | *Security → Dependabot → Closed*: os 25 alertas (critical, high e moderate em Flask, Werkzeug, PyYAML, Jinja2 e requests) fechados como *fixed* depois da restauração das versões (commit `2210264`) e do PR #9 |
 | [`grafana-forca-bruta.png`](grafana-forca-bruta.png) | Dashboard: 52 falhas de login, pico de 50 do IP atacante acima do limite (10) e o IP legítimo com 2 |
 | [`grafana-alerta.png`](grafana-alerta.png) | Regra provisionada pelo repositório em **Firing**: `172.21.0.4` em *Alerting* e `172.21.0.1` em *Normal* (sem falso positivo) |
 | [`grafana-explore-request-id.png`](grafana-explore-request-id.png) | Q3: uma requisição do atacante rastreada pelo `request_id` (`POST /login`, IP, status) |
