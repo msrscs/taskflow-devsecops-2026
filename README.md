@@ -25,8 +25,15 @@ protegida por uma esteira de CI segura no GitHub Actions. Cada ferramenta é um
 | **Professores** | • Cris Apolinário<br>• Diego Buarque de Amorim Batista |
 | **Equipe** | • André Luis Freire de Andrade Sieczko<br>• Artur Torres Lima Cavalcanti<br>• Eduardo Henrique Ferreira Fonseca Barbosa<br>• Gabriel de Medeiros Almeida<br>• Mauro Sérgio Rezende da Silva<br>• Silvio Barros Tenório |
 
+## Papéis da equipe
+
+| Integrante | GitHub | Parte na apresentação |
+|---|---|---|
+| Mauro Sérgio Rezende da Silva | @maurosrs | A esteira e a demo do PR bloqueado; operação da tela; incidente ao vivo |
+
 ## Sumário
 
+- [Papéis da equipe](#papéis-da-equipe)
 - [Ciclo de vida seguro (S-SDLC)](#ciclo-de-vida-seguro-s-sdlc)
 - [Arquitetura](#arquitetura)
 - [A esteira (workflows)](#a-esteira-workflows)
