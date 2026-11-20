@@ -213,7 +213,7 @@ Security → Dependabot.
   - corrigimos com `var.cidr_saida`;
   - é o gate funcionando com a gente, não só com o código do professor.
 
-**André: Docker Compose e host**
+**André Luis Freire de Andrade Sieczko (`sieczko99`): Docker Compose e host**
 
 - **Docker Compose:**
   - o Postgres não tem porta no host e a rede `backend` é `internal`;
