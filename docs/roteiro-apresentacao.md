@@ -197,7 +197,7 @@ Security → Dependabot.
 
 **Tela:** `infra/main.tf` e `docker-compose.yml`; depois `docs/lynis.md`.
 
-**Silvio: Terraform e scanners**
+**Silvio Barros Tenório (`silviotenorio-cesarschool`): Terraform e scanners**
 
 - **Terraform** (`infra/`):
   - bucket S3 com KMS, bloqueio de acesso público, versionamento, logging e
