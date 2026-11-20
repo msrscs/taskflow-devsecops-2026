@@ -171,6 +171,8 @@ Security → Dependabot.
 
 ## 4. DAST: o ZAP acusando e a correção (Gabriel, 2,5 min)
 
+**Responsável:** Gabriel de Medeiros Almeida (`gma102`)
+
 **Tela:** `docs/owasp-mapeamento.md`, seção 1; depois o `.zap/rules.tsv`.
 
 - O ZAP roda **dentro do CI**:
