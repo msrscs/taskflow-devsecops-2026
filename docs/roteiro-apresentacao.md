@@ -10,7 +10,7 @@ integrante narra a sua parte e diz quando trocar de aba.
 | 2 | A esteira e a **demo do PR bloqueado** (ao vivo) | Mauro | 4 min | 6 min |
 | 3 | SAST, segredos, SCA (com Dependabot) e container: antes × depois | Eduardo | 3 min | 9 min |
 | 4 | DAST: o ZAP acusando e a correção | Gabriel | 2,5 min | 11,5 min |
-| 5 | IaC (Checkov e Trivy) e hardening do host (Lynis) | Silvio | 2,5 min | 14 min |
+| 5 | IaC (Checkov e Trivy) e hardening do host (Lynis) | Silvio e André | 2,5 min | 14 min |
 | 6 | **Incidente ao vivo**: força bruta → Grafana → runbook | Gabriel e Mauro | 4 min | 18 min |
 | 7 | Uma decisão técnica e um trade-off | Eduardo | 1,5 min | 19,5 min |
 | 8 | O aprendizado mais impactante e fechamento | Artur e Silvio | 1 min | 20,5 min |
@@ -191,9 +191,11 @@ Security → Dependabot.
 - **Limite honesto:** o ZAP Baseline é **passivo**. Ele não testa SQL
   Injection. Isso é coberto pelo Semgrep e pelos testes manuais.
 
-## 5. IaC e hardening do host (Silvio, 2,5 min)
+## 5. IaC e hardening do host (Silvio e André, 2,5 min)
 
 **Tela:** `infra/main.tf` e `docker-compose.yml`; depois `docs/lynis.md`.
+
+**Silvio: Terraform e scanners**
 
 - **Terraform** (`infra/`):
   - bucket S3 com KMS, bloqueio de acesso público, versionamento, logging e
@@ -206,6 +208,9 @@ Security → Dependabot.
     para `0.0.0.0/0` (AWS-0104, **CRITICAL**);
   - corrigimos com `var.cidr_saida`;
   - é o gate funcionando com a gente, não só com o código do professor.
+
+**André: Docker Compose e host**
+
 - **Docker Compose:**
   - o Postgres não tem porta no host e a rede `backend` é `internal`;
   - todos os containers com `read_only`, `cap_drop: ALL`, usuário não-root e
